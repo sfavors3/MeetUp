@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MeetUp</string>
+    <string name="menu_map_invite">Invite</string>
+    <string name="menu_map_view">View</string>
+    <string name="menu_map_zoom">Zoom</string>
+</resources>
