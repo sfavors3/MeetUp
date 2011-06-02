@@ -539,6 +539,7 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 			stopService(ServiceType.MY_LOCATION);
 		}
 		
+		// unregister broadcast receivers
 		if (sendInviteReceiver != null) {
 			unregisterReceiver(sendInviteReceiver);
 		}
