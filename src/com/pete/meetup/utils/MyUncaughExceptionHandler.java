@@ -45,8 +45,6 @@ public class MyUncaughExceptionHandler implements UncaughtExceptionHandler {
 			Log.e(MeetUp.LOG_TAG, "Failed to record crash report.");
 		}
 
-
-		// TODO can we display our own prompt to say that error has been logged
 		// rethrow to cause application to exit - not sure this is possible
 		defaultHandler.uncaughtException(thread, ex);	
 	}

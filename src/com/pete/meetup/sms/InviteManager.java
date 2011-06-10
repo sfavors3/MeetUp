@@ -62,21 +62,9 @@ public class InviteManager {
 		sb.append("\n" + INTENT_URI + PARAM_SESSION + "=" + sessionId);
 
 		if (sb.length() > MAX_SMS_LENGTH) {
-			// TODO: throw an exception
 			Log.e(MeetUp.LOG_TAG, "Text message too long");
 			throw new RuntimeException("Text longer than SMS limit");
 		}
         return sb.toString();
 	}
-	
-	//is the following any good?
-	/*
-	private void count() {
-		
-I would like to use MeetUp to find out where you are 53
-\nGet Meetup from the MarketPlace then click the link 53
-\nhttp://www.tiny.cc/meetupapp/go?s= 36
-+ 22
-	}
-	*///= 160
 }

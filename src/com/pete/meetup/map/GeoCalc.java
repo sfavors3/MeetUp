@@ -5,10 +5,10 @@ import com.google.android.maps.MapController;
 import com.google.android.maps.MapView;
 
 public class GeoCalc {
-    private static int MIN_LAT_SPAN = 15000;
-    private static int MIN_LON_SPAN = 90000;
+    public static int MIN_LAT_SPAN = 15000;
+    public static int MIN_LON_SPAN = 90000;
 
-    private static int SPAN_MULTIPLE = 2;
+    public static int SPAN_MULTIPLE = 2;
     private static final int LON_MICRO_MAX = microDegrees(360);
     private static final int LON_MICRO_MID = microDegrees(180);
 
@@ -19,7 +19,7 @@ public class GeoCalc {
      * @param pts
      */
     public static void zoomToPointsSpan(MapView mapView, GeoPoint[] pts,
-    		boolean satellite) {
+    		boolean satellite, GeoPoint currentCentre) {
         if (!mapView.isShown()) {
             return;
         }

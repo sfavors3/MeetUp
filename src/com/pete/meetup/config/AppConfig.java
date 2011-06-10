@@ -23,7 +23,8 @@ public class AppConfig {
 	private String personId;
 	private String sessionId;
 	private String name;
-	
+	private boolean online;
+
 	private List<PersonLocation> rememberedLocations;
 	
 	protected AppConfig() {
@@ -49,9 +50,9 @@ public class AppConfig {
 	
 	public boolean saveAllConfig(Context context) {
 		try {
-			//TODO: do we need to save removed locations?
 			AppConfigManager manager = new AppConfigManager(context);
 			manager.saveConfiguration(this);
+			saveRememberedLocations(context);
 			return true;
 		} catch (Exception e) {
 			return false;
@@ -124,7 +125,17 @@ public class AppConfig {
 	}
 	
 	public boolean isTestPhone() {
-		//return false;
-		return TEST_PHONE_IDS.contains(personId);
+		// TODO remove hardcoding
+		return false;
+		//return TEST_PHONE_IDS.contains(personId);
+		//return true;
+	}
+	
+	public boolean isOnline() {
+		return online;
+	}
+
+	public void setOnline(boolean online) {
+		this.online = online;
 	}
 }

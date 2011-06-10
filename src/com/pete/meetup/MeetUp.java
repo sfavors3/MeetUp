@@ -8,6 +8,7 @@ import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.drawable.Drawable;
@@ -20,10 +21,12 @@ import android.telephony.SmsManager;
 import android.telephony.TelephonyManager;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
+import android.view.Display;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.Toast;
 
 import com.flurry.android.FlurryAgent;
@@ -86,12 +89,16 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	private static final int DIALOG_PROMPT_INSTALL_NAV		= 7;
 	private static final int DIALOG_PROMPT_EXIT_APP			= 8;
 	private static final int DIALOG_PROMPT_CHANGE_VIEW		= 9;
+	private static final int DIALOG_HELP					= 10;
 	
 	private static final int OVERLAY_ME						= 1;
 	private static final int OVERLAY_OTHERS					= 2;
 	private static final int OVERLAY_REMEMBERED				= 3;
 	
-	private static final int CONTACT_PICKER_RESULT 	= 1001; 
+	private static final String INTENT_READ 				= "IntentRead";
+	
+	private static final int CONTACT_PICKER_RESULT 	= 1001;
+	private static final int GPS_RESULT				= 1002;
 
 	private static ActivityState currentState = ActivityState.STATE_START_UP;
 	private static TextFormatter nameFormatter = new NameFormatter(MAX_NAME_LENGTH);
@@ -113,6 +120,8 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	private boolean navWalking;
 	private boolean continueSession = true;
 	private BalloonManager balloonManager = null;
+	private boolean firstUsage = false;
+	private boolean intentRead = false;
 	
 	private enum ActivityState {
 		STATE_START_UP,
@@ -125,7 +134,6 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		STATE_PROMPT_NAME_ENTRY,
 		STATE_NAME_ENTERED,
 		STATE_GPS_PROMPT,
-		STATE_GPS_PROMPT_CLOSED,
 		STATE_AWAITING_LOCATION,
 		STATE_FOUND_LOCATION
 	};
@@ -152,6 +160,10 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.map);
 		
+		if (savedInstanceState != null) {
+			intentRead = savedInstanceState.getBoolean(INTENT_READ, false);
+		}
+		
 		// global exception handler tied into flurry
 		Thread.setDefaultUncaughtExceptionHandler(
 				new MyUncaughExceptionHandler(this));
@@ -176,8 +188,11 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	private void initialise() {
 		launchedFromIntent = initialiseConfiguration(getIntent());
 		
+		firstUsage = (AppConfig.getInstance().getSessionId() == null);
+		
 		if (launchedFromIntent) {
-			currentState = ActivityState.STATE_START_UP;
+			// TODO why is the state getting set here?
+			//currentState = ActivityState.STATE_START_UP;
 		}
 		
 		if (sendInviteReceiver == null) {
@@ -259,29 +274,40 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	    		activityStateMachine(ActivityState.STATE_AWAITING_LOCATION);
 	    	}
 			break;
-		case STATE_GPS_PROMPT_CLOSED:
-			activityStateMachine(ActivityState.STATE_AWAITING_LOCATION);
-			break;
 		case STATE_AWAITING_LOCATION:
 			showWaitingLocation();
 			startService(ServiceType.MY_LOCATION);
 			break;
 		case STATE_FOUND_LOCATION:
+			// this is required in order to reset my location
 			startService(ServiceType.MY_LOCATION);
 			
-			// start remote service if launched from intent or continuing
-			// old session, otherwise wait until invite successfully sent
-			if (launchedFromIntent ||
-				continueSession ||
-				AppConfig.getInstance().isTestPhone()) {
+			// recentre map as orientation may have changed
+			centreMap(centreMode);
+			
+			if (goOnline()) {
 				startService(ServiceType.REMOTE);
 			}
 			break;
 		}
 	}
 	
+	private boolean goOnline() {
+		// go online if 
+		// - app launched from intent
+		// - test phone
+		// - continuing previous session which was online
+		if (launchedFromIntent ||
+			AppConfig.getInstance().isTestPhone() ||
+			(continueSession && AppConfig.getInstance().isOnline())) {
+			return true;
+		}
+		return false;
+	}
+	
 	private void setNewSessionId(String sessionId) {
 		continueSession = false;
+		AppConfig.getInstance().setOnline(false);
 		centrePerson = null;
 		setCentreMode(CentreMode.EVERYONE, false);
 		AppConfig.getInstance().setSessionId(sessionId);
@@ -315,6 +341,7 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 			break;
 		case REMOTE:
 			startService(new Intent(this, RemoteUpdateService.class));
+			AppConfig.getInstance().setOnline(true);
 		}
 	}
 	
@@ -323,7 +350,7 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		switch (serviceType) {
 			case MY_LOCATION:
 				try {
-					stopService(new Intent(this, RemoteUpdateService.class));
+					stopService(new Intent(this, MyLocationService.class));
 				} catch (Exception e) {
 					// swallow
 				}
@@ -412,7 +439,8 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		}
 		
 		// if application launched from a SMS read the session id
-		if (intent != null &&
+		if (!intentRead &&
+			intent != null &&
 			intent.getData() != null &&
 			intent.getAction().equals(Intent.ACTION_VIEW)) {
 			
@@ -421,6 +449,9 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
         	setNewSessionId(param);
 
         	lauchedFromIntent = true;
+        	
+        	// avoid intent being used multiple times i.e. when screen orientation changes
+        	intentRead = true;
         } 
 		
 		return lauchedFromIntent;
@@ -442,10 +473,12 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 					progressDialog.dismiss();
 				}
 
-				setCurrentState(ActivityState.STATE_FOUND_LOCATION);
-
-				// now got location can send lcoation to server
-				startService(ServiceType.REMOTE);
+				activityStateMachine(ActivityState.STATE_FOUND_LOCATION);
+				
+				if (firstUsage) {
+					//display prompt - how to invite people
+					showDialog(DIALOG_HELP);
+				}
 			}
 
 			centreMap(centreMode);
@@ -558,6 +591,7 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	protected void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
 		
+		outState.putBoolean(INTENT_READ, intentRead);
 		// save the config
 		//AppConfig.getInstance().write(outState);
 	}
@@ -667,7 +701,14 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
     public void showWaitingLocation() {
 		progressDialog = new ProgressDialog(this);
         progressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-        progressDialog.setMessage("Waiting for location");
+        progressDialog.setMessage("Waiting for location.\nThis may take a while, especially indoors.");
+        progressDialog.setCancelable(true);
+        progressDialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+			
+			public void onCancel(DialogInterface paramDialogInterface) {
+				showDialog(DIALOG_PROMPT_EXIT_APP);
+			}
+		});
         progressDialog.show();
     }
     
@@ -677,9 +718,10 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
     }
     
     protected void onActivityResult(int requestCode, int resultCode, Intent intent) {  
-	    if (resultCode == RESULT_OK) {  
-		    switch (requestCode) {  
-		    	case CONTACT_PICKER_RESULT:  
+	    
+	    switch (requestCode) {  
+    		case CONTACT_PICKER_RESULT:
+    		if (resultCode == RESULT_OK) {  
 		    	// handle contact results
 		    	Uri uri = intent.getData();
 		    	String contactId = uri.getLastPathSegment();
@@ -687,9 +729,11 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		    	
 		    	// confirm user OK to send text invite
 		    	showDialog(DIALOG_PROMPT_CONFIRM_INVITE);
-		   
-		    	break;  
-		    }
+    		}
+    		break;
+    		case GPS_RESULT:
+    			activityStateMachine(ActivityState.STATE_GPS_PROMPT);
+    			break;
 	    }
 	}
     
@@ -781,6 +825,9 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		case DIALOG_PROMPT_CHANGE_VIEW:
 			prompt = new ChangeViewPrompt(id, this, this, false, viewType);
 			break;
+		case DIALOG_HELP:
+			prompt = new AlertPrompt(id, this, this, false,
+					null, "To invite people to meet up click menu then select Invite.");
 		}
 		if (prompt != null) {
 			return prompt.create();
@@ -805,8 +852,13 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 				break;
 				case DIALOG_PROMPT_GPS:
 					if (code != ReturnCode.CANCEL) {
-						dismissDialog(DIALOG_PROMPT_GPS);
-						activityStateMachine(ActivityState.STATE_GPS_PROMPT_CLOSED);
+						//dismissDialog(DIALOG_PROMPT_GPS);
+						//activityStateMachine(ActivityState.STATE_GPS_PROMPT_CLOSED);
+						
+						Intent intent = new Intent(
+			       				android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+			        	
+			        	startActivityForResult(intent, GPS_RESULT);
 					}
 				break;
 				case DIALOG_PROMPT_REMEMBER_DESC:
@@ -865,6 +917,8 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 			    	handler.navigateTo(selectedLocation, navWalking);
 					if (code == ReturnCode.POSITIVE) {
 						finish();
+					} else {
+						activityStateMachine(currentState);
 					}
 				break;
 				case DIALOG_PROMPT_CHANGE_VIEW:
@@ -889,6 +943,15 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 		}
 	}
 	
+	private int getScreenOrientation() {
+		Display display = ((WindowManager) getSystemService(WINDOW_SERVICE)).getDefaultDisplay();
+
+		if (display != null) {
+			return display.getOrientation();
+		}
+		return -1;
+	}
+	
 	private void setCentreMode(CentreMode centreMode, boolean updateMap) {
 		if (centreMode != null) {
 			MeetUp.centreMode = centreMode;
@@ -906,8 +969,6 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 	
 	private void centreMap(CentreMode centreMode) {
 		if (centreMode != null) {
-			MapZoomController controller = new MapZoomController(mapView);
-			
 			List<PersonLocation> locations = new ArrayList<PersonLocation>();
 			
 			if (Locations.getAllLocations() != null) {
@@ -917,9 +978,11 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 				locations.addAll(AppConfig.getInstance().getRememberedLocations());
 			}
 			
+			int orientation = getScreenOrientation();
+			
 			switch (centreMode) {
 			case EVERYONE:
-				controller.zoomToMiddle(locations, viewType);
+				MapZoomController.zoomToMiddle(mapView, locations, viewType, orientation);
 				break;
 			case SINGLE_PERSON:
 				// single person selected - re-read from list 
@@ -927,7 +990,7 @@ public class MeetUp extends MapActivity implements PromptDismissListener,
 					PersonLocation centre = Locations.findLocationInList(locations, centrePerson);
 					
 					if (centre != null) {
-						controller.zoomToMiddle(centre, viewType);
+						MapZoomController.zoomToMiddle(mapView, centre, viewType, orientation);
 					}
 				}
 				break;

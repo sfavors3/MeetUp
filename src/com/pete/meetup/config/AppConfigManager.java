@@ -26,11 +26,13 @@ public class AppConfigManager {
 	    private static final String CONFIG_COLUMN_PERSON 		= "PersonId";
 	    private static final String CONFIG_COLUMN_SESSION		= "Session";
 	    private static final String CONFIG_COLUMN_NAME			= "Name";
+	    private static final String CONFIG_COLUMN_ONLINE		= "Online";
 	    //private static final String CONFIG_COLUMN_URI			= "Uri";
 	    
 	    // location table
 	    private static final String TABLE_LOCATION 				= "Location";
 	    private static final String LOCATION_COLUMN_SESSION 	= "Session";
+	    private static final String LOCATION_COLUMN_PERSON		= "PersonId";
 	    private static final String LOCATION_COLUMN_LATITUDE 	= "Latitude";
 	    private static final String LOCATION_COLUMN_LONGITUDE 	= "Longitude";
 	    private static final String LOCATION_COLUMN_DESCRIPTION	= "Description";
@@ -39,12 +41,14 @@ public class AppConfigManager {
 	                "CREATE TABLE " + TABLE_CONFIG + " (" +
 	                CONFIG_COLUMN_PERSON + " TEXT, " +
 	                CONFIG_COLUMN_SESSION + " TEXT, " +
-	    			CONFIG_COLUMN_NAME + " TEXT);";// +
+	    			CONFIG_COLUMN_NAME + " TEXT, " +
+	    			CONFIG_COLUMN_ONLINE + " INTEGER);";// +
 	                //CONFIG_COLUMN_URI + " TEXT);";
 	    
 	    private static final String TABLE_LOCATION_CREATE =
             "CREATE TABLE " + TABLE_LOCATION + " (" +
             LOCATION_COLUMN_SESSION + " TEXT," +
+            LOCATION_COLUMN_PERSON + " TEXT," +
             LOCATION_COLUMN_LATITUDE + " TEXT, " +
             LOCATION_COLUMN_LONGITUDE + " TEXT," +
             LOCATION_COLUMN_DESCRIPTION + " TEXT);";
@@ -91,7 +95,8 @@ public class AppConfigManager {
 			c = database.query(ConfigOpenHelper.TABLE_CONFIG,
 					new String[] {ConfigOpenHelper.CONFIG_COLUMN_PERSON,
 					ConfigOpenHelper.CONFIG_COLUMN_SESSION,
-					ConfigOpenHelper.CONFIG_COLUMN_NAME},
+					ConfigOpenHelper.CONFIG_COLUMN_NAME,
+					ConfigOpenHelper.CONFIG_COLUMN_ONLINE},
 					null, null, null, null, null);
 			
 			// iterate cursor returned from query
@@ -101,6 +106,7 @@ public class AppConfigManager {
 					config.setPersonId(c.getString(column++));
 					config.setSessionId(c.getString(column++));
 					config.setName(c.getString(column++));
+					config.setOnline(c.getInt(column++) != 0);
 				}
 			}
 		} finally {
@@ -117,6 +123,7 @@ public class AppConfigManager {
 			c = database.query(ConfigOpenHelper.TABLE_LOCATION,
 					new String[] {
 					ConfigOpenHelper.LOCATION_COLUMN_SESSION,
+					ConfigOpenHelper.LOCATION_COLUMN_PERSON,
 					ConfigOpenHelper.LOCATION_COLUMN_DESCRIPTION,
 					ConfigOpenHelper.LOCATION_COLUMN_LATITUDE,
 					ConfigOpenHelper.LOCATION_COLUMN_LONGITUDE},
@@ -131,7 +138,7 @@ public class AppConfigManager {
 					do {
 						int column = 0;
 						locations.add(new PersonLocation(c.getString(column++), // session
-								null, // person
+								c.getString(column++), // person
 								c.getString(column++), 		// name/description
 								c.getString(column++), 		// latitude
 								c.getString(column++),		// longitude
@@ -187,6 +194,7 @@ public class AppConfigManager {
 			values.put(ConfigOpenHelper.CONFIG_COLUMN_PERSON, config.getPersonId());
 			values.put(ConfigOpenHelper.CONFIG_COLUMN_SESSION, config.getSessionId());
 			values.put(ConfigOpenHelper.CONFIG_COLUMN_NAME, config.getName());
+			values.put(ConfigOpenHelper.CONFIG_COLUMN_ONLINE, config.isOnline() ? 1 : 0);
 			database.insert(ConfigOpenHelper.TABLE_CONFIG, null, values);	
 		}
 	}   
@@ -199,6 +207,7 @@ public class AppConfigManager {
 			for (PersonLocation location : locations) {
 				ContentValues values = new ContentValues();
 				values.put(ConfigOpenHelper.LOCATION_COLUMN_SESSION, location.getSession());
+				values.put(ConfigOpenHelper.LOCATION_COLUMN_PERSON, location.getPerson());
 				values.put(ConfigOpenHelper.LOCATION_COLUMN_LATITUDE, location.getLatitude());
 				values.put(ConfigOpenHelper.LOCATION_COLUMN_LONGITUDE, location.getLongitude());
 				values.put(ConfigOpenHelper.LOCATION_COLUMN_DESCRIPTION, location.getName());

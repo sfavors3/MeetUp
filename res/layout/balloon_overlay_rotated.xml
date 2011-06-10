@@ -22,7 +22,7 @@
 			android:layout_width="fill_parent" 
 			android:id="@+id/balloon_item_title"
 			android:gravity="center_horizontal"
-			android:textSize="16dip"
+			android:textSize="14dip"
 			android:textColor="#FF000000"></TextView>
 		<TextView android:layout_height="wrap_content"
 			android:layout_width="fill_parent" 

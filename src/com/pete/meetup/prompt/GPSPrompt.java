@@ -15,9 +15,9 @@ public class GPSPrompt extends AbstractPrompt {
 	@Override
 	public AlertDialog create() {
 		AlertDialog.Builder builder = new AlertDialog.Builder(context);
-    	builder.setMessage("Show location settings")
+    	builder.setMessage("Click OK, then in locations settings check 'Use GPS satellites' and press the back button.")
     	   //.setTitle("Please enable GPS and/or Network location settings.")
-    	   .setTitle("Please enable GPS location settings.")
+    	   .setTitle("Please enable GPS location settings")
 	       .setCancelable(true)
 	       .setOnCancelListener(new DialogInterface.OnCancelListener() {
 				public void onCancel(DialogInterface dialog) {
@@ -28,10 +28,6 @@ public class GPSPrompt extends AbstractPrompt {
 		   })
 	       .setPositiveButton("OK", new DialogInterface.OnClickListener() {
 	           public void onClick(DialogInterface dialog, int id) {
-	        	   Intent intent = new Intent(
-	       				android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS);
-	        	   
-	        	   GPSPrompt.this.context.startActivity(intent);
 	        	   
 	        	   if (listener != null) {
 						listener.onDismiss(GPSPrompt.this.id, GPSPrompt.this, ReturnCode.POSITIVE);

@@ -42,6 +42,14 @@ public class MyLocationService extends Service implements MyLocationListener {
 		}
 		return START_STICKY;
 	}
+	
+	public boolean isRunning() {
+		if (locationManager != null &&
+			locationManager.isRunning()) {
+			return true;
+		}
+		return false;
+	}
 
 	@Override
 	public IBinder onBind(Intent intent) {
